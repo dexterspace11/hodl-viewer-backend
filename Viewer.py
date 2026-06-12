@@ -1,0 +1,181 @@
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from web3 import Web3
+import requests
+import os
+from datetime import datetime
+
+# =========================
+# CONFIG
+# =========================
+
+RPC_URL = os.getenv(
+    "RPC_URL",
+    "https://mainnet.infura.io/v3/6110d18324774a17bd41ae0c3d9e382c"
+)
+
+STETH_ADDRESS = "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84"
+
+# =========================
+# APP
+# =========================
+
+app = FastAPI(title="HODL Viewer API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
+# =========================
+# WEB3 HELPERS
+# =========================
+
+def get_web3():
+    w3 = Web3(Web3.HTTPProvider(RPC_URL))
+
+    if not w3.is_connected():
+        raise Exception("RPC connection failed")
+
+    return w3
+
+
+ABI = [
+    {
+        "constant": True,
+        "inputs": [{"name": "_owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "balance", "type": "uint256"}],
+        "type": "function"
+    }
+]
+
+# =========================
+# STETH BALANCE
+# =========================
+
+def get_steth_balance(address: str):
+    try:
+        w3 = get_web3()
+
+        wallet_address = Web3.to_checksum_address(address)
+        steth_contract = Web3.to_checksum_address(STETH_ADDRESS)
+
+        contract = w3.eth.contract(
+            address=steth_contract,
+            abi=ABI
+        )
+
+        raw_balance = contract.functions.balanceOf(
+            wallet_address
+        ).call()
+
+        return float(w3.from_wei(raw_balance, "ether"))
+
+    except Exception as e:
+        raise Exception(f"stETH fetch failed: {str(e)}")
+
+
+# =========================
+# ETH PRICE (PHP)
+# =========================
+
+def get_eth_php_price():
+    try:
+        r = requests.get(
+            "https://api.coingecko.com/api/v3/simple/price",
+            params={
+                "ids": "ethereum",
+                "vs_currencies": "php"
+            },
+            timeout=10
+        )
+
+        data = r.json()
+        return float(data["ethereum"]["php"])
+
+    except Exception:
+        return 0.0
+
+
+# =========================
+# GAS ESTIMATE
+# =========================
+
+def estimate_gas_php(eth_php: float):
+    try:
+        w3 = get_web3()
+
+        gas_price = w3.eth.gas_price
+        estimated_units = 120000
+
+        eth_cost = w3.from_wei(
+            gas_price * estimated_units,
+            "ether"
+        )
+
+        return float(eth_cost) * eth_php
+
+    except Exception:
+        return 0.0
+
+
+# =========================
+# ROOT
+# =========================
+
+@app.get("/")
+def home():
+    return {
+        "status": "ok",
+        "message": "HODL Viewer API is running"
+    }
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "healthy",
+        "time": str(datetime.utcnow())
+    }
+
+
+# =========================
+# MAIN ENDPOINT
+# =========================
+
+@app.get("/wallet/{address}")
+def wallet(address: str):
+
+    if not address.startswith("0x") or len(address) != 42:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid Ethereum address"
+        )
+
+    try:
+        steth = get_steth_balance(address)
+
+        eth_php = get_eth_php_price()
+
+        value_php = steth * eth_php
+
+        gas_php = estimate_gas_php(eth_php)
+
+        return {
+            "address": address,
+            "steth_balance": round(steth, 6),
+            "value_php": round(value_php, 2),
+            "gas_php": round(gas_php, 2),
+            "updated_at": str(datetime.utcnow())
+        }
+
+    except Exception as e:
+        return {
+            "error": str(e),
+            "status": "failed",
+            "updated_at": str(datetime.utcnow())
+        }
