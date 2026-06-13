@@ -84,7 +84,7 @@ def get_steth_balance(address: str):
 
 def get_eth_usd_price():
     # =========================
-    # 1. COINBASE (BEST SOURCE)
+    # COINBASE
     # =========================
     try:
         r = requests.get(
@@ -92,17 +92,19 @@ def get_eth_usd_price():
             timeout=8
         )
 
-        data = r.json()
-        price = float(data["data"]["amount"])
+        print("Coinbase status:", r.status_code)
+        print("Coinbase raw:", r.text)
 
-        print("Coinbase ETH/USD:", price)
-        return price
+        data = r.json()
+
+        if "data" in data and "amount" in data["data"]:
+            return float(data["data"]["amount"])
 
     except Exception as e:
-        print("Coinbase failed:", str(e))
+        print("Coinbase error:", str(e))
 
     # =========================
-    # 2. BINANCE (BACKUP)
+    # BINANCE
     # =========================
     try:
         r = requests.get(
@@ -110,47 +112,41 @@ def get_eth_usd_price():
             timeout=8
         )
 
-        data = r.json()
-        price = float(data["price"])
+        print("Binance status:", r.status_code)
+        print("Binance raw:", r.text)
 
-        print("Binance ETH/USD:", price)
-        return price
+        data = r.json()
+
+        if "price" in data:
+            return float(data["price"])
 
     except Exception as e:
-        print("Binance failed:", str(e))
+        print("Binance error:", str(e))
 
     # =========================
-    # 3. COINGECKO (LAST RESORT)
+    # COINGECKO
     # =========================
     try:
         r = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
-            params={
-                "ids": "ethereum",
-                "vs_currencies": "usd"
-            },
-            timeout=10,
-            headers={"accept": "application/json"}
+            params={"ids": "ethereum", "vs_currencies": "usd"},
+            timeout=10
         )
+
+        print("CoinGecko status:", r.status_code)
+        print("CoinGecko raw:", r.text)
 
         data = r.json()
 
-        price = data.get("ethereum", {}).get("usd", None)
-
-        print("CoinGecko ETH/USD:", price)
-
-        if price is None:
-            return 0.0
-
-        return float(price)
+        return float(data["ethereum"]["usd"])
 
     except Exception as e:
-        print("CoinGecko failed:", str(e))
+        print("CoinGecko error:", str(e))
 
     # =========================
-    # FAIL SAFE
+    # FAIL HARD (NOT SILENT)
     # =========================
-    return 0.0
+    raise Exception("ALL PRICE SOURCES FAILED")
 
 
 # =========================
