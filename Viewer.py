@@ -31,7 +31,7 @@ app.add_middleware(
 )
 
 # =========================
-# WEB3 HELPERS
+# WEB3
 # =========================
 
 def get_web3():
@@ -78,43 +78,48 @@ def get_steth_balance(address: str):
     except Exception as e:
         raise Exception(f"stETH fetch failed: {str(e)}")
 
+# =========================
+# ETH PRICE (USD)
+# =========================
 
-# =========================
-# ETH PRICE (PHP)
-# =========================
-def get_eth_usd_price() -> float:
+def get_eth_usd_price():
     try:
         r = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
             params={"ids": "ethereum", "vs_currencies": "usd"},
             timeout=8
         )
-        return r.json()["ethereum"]["usd"]
-    except:
+
+        data = r.json()
+
+        return float(data["ethereum"]["usd"])
+
+    except Exception:
         return 0.0
 
-
 # =========================
-# GAS ESTIMATE
+# GAS ESTIMATE (USD)
 # =========================
 
-def estimate_gas_php(eth_php: float):
+def estimate_gas_usd(eth_usd: float):
     try:
         w3 = get_web3()
 
         gas_price = w3.eth.gas_price
         estimated_units = 120000
 
-        eth_cost = w3.from_wei(
-            gas_price * estimated_units,
-            "ether"
+        total_gas_cost_wei = gas_price * estimated_units
+
+        gas_eth = float(
+            w3.from_wei(total_gas_cost_wei, "ether")
         )
 
-        return float(eth_cost) * eth_php
+        gas_usd = gas_eth * eth_usd
+
+        return gas_usd
 
     except Exception:
         return 0.0
-
 
 # =========================
 # ROOT
@@ -127,14 +132,12 @@ def home():
         "message": "HODL Viewer API is running"
     }
 
-
 @app.get("/health")
 def health():
     return {
         "status": "healthy",
         "time": str(datetime.utcnow())
     }
-
 
 # =========================
 # MAIN ENDPOINT
@@ -152,9 +155,9 @@ def wallet(address: str):
     try:
         steth = get_steth_balance(address)
 
-        eth_php = get_eth_usd_price()
+        eth_usd = get_eth_usd_price()
 
-        value_php = steth * eth_usd
+        value_usd = steth * eth_usd
 
         gas_usd = estimate_gas_usd(eth_usd)
 
