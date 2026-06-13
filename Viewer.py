@@ -83,6 +83,45 @@ def get_steth_balance(address: str):
 # =========================
 
 def get_eth_usd_price():
+    # =========================
+    # 1. COINBASE (BEST SOURCE)
+    # =========================
+    try:
+        r = requests.get(
+            "https://api.coinbase.com/v2/prices/ETH-USD/spot",
+            timeout=8
+        )
+
+        data = r.json()
+        price = float(data["data"]["amount"])
+
+        print("Coinbase ETH/USD:", price)
+        return price
+
+    except Exception as e:
+        print("Coinbase failed:", str(e))
+
+    # =========================
+    # 2. BINANCE (BACKUP)
+    # =========================
+    try:
+        r = requests.get(
+            "https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT",
+            timeout=8
+        )
+
+        data = r.json()
+        price = float(data["price"])
+
+        print("Binance ETH/USD:", price)
+        return price
+
+    except Exception as e:
+        print("Binance failed:", str(e))
+
+    # =========================
+    # 3. COINGECKO (LAST RESORT)
+    # =========================
     try:
         r = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
@@ -96,20 +135,23 @@ def get_eth_usd_price():
 
         data = r.json()
 
-        # DEBUG (important)
-        print("CoinGecko RAW:", data)
+        price = data.get("ethereum", {}).get("usd", None)
 
-        eth = data.get("ethereum", {})
-        usd = eth.get("usd", None)
+        print("CoinGecko ETH/USD:", price)
 
-        if usd is None:
+        if price is None:
             return 0.0
 
-        return float(usd)
+        return float(price)
 
     except Exception as e:
-        print("CoinGecko error:", str(e))
-        return 0.0
+        print("CoinGecko failed:", str(e))
+
+    # =========================
+    # FAIL SAFE
+    # =========================
+    return 0.0
+
 
 # =========================
 # GAS ESTIMATE (USD)
@@ -120,7 +162,7 @@ def estimate_gas_usd(eth_usd: float):
         w3 = get_web3()
 
         gas_price = w3.eth.gas_price
-        estimated_units = 120000
+        estimated_units = 210000
 
         total_gas_cost_wei = gas_price * estimated_units
 
