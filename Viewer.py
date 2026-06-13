@@ -90,28 +90,26 @@ def get_eth_usd_price():
                 "ids": "ethereum",
                 "vs_currencies": "usd"
             },
-            headers={
-                "accept": "application/json"
-            },
-            timeout=10
+            timeout=10,
+            headers={"accept": "application/json"}
         )
-
-        print("CoinGecko response:", r.text)
-
-        if r.status_code != 200:
-            return 0.0
 
         data = r.json()
 
-        if "ethereum" not in data:
+        # DEBUG (important)
+        print("CoinGecko RAW:", data)
+
+        eth = data.get("ethereum", {})
+        usd = eth.get("usd", None)
+
+        if usd is None:
             return 0.0
 
-        return float(data["ethereum"]["usd"])
+        return float(usd)
 
     except Exception as e:
-        print("Price fetch error:", str(e))
+        print("CoinGecko error:", str(e))
         return 0.0
-
 
 # =========================
 # GAS ESTIMATE (USD)
