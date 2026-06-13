@@ -82,22 +82,15 @@ def get_steth_balance(address: str):
 # =========================
 # ETH PRICE (PHP)
 # =========================
-
-def get_eth_php_price():
+def get_eth_usd_price() -> float:
     try:
         r = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
-            params={
-                "ids": "ethereum",
-                "vs_currencies": "php"
-            },
-            timeout=10
+            params={"ids": "ethereum", "vs_currencies": "usd"},
+            timeout=8
         )
-
-        data = r.json()
-        return float(data["ethereum"]["php"])
-
-    except Exception:
+        return r.json()["ethereum"]["usd"]
+    except:
         return 0.0
 
 
@@ -159,17 +152,17 @@ def wallet(address: str):
     try:
         steth = get_steth_balance(address)
 
-        eth_php = get_eth_php_price()
+        eth_php = get_eth_usd_price()
 
-        value_php = steth * eth_php
+        value_php = steth * eth_usd
 
-        gas_php = estimate_gas_php(eth_php)
+        gas_usd = estimate_gas_usd(eth_usd)
 
         return {
             "address": address,
             "steth_balance": round(steth, 6),
-            "value_php": round(value_php, 2),
-            "gas_php": round(gas_php, 2),
+            "value_usd": round(value_usd, 2),
+            "gas_usd": round(gas_usd, 2),
             "updated_at": str(datetime.utcnow())
         }
 
